@@ -35,7 +35,7 @@
 - 激励:AXI4-Lite 主机 BFM,支持独立控制 AW/W/AR 的 valid 延迟,以及 bready/rready 的反压延迟。遵守 valid 握手前保持的主机义务。
 - 参考模型:TB 内维护 NUM_REGS 个字的数组,按 wstrb 字节更新;越界写丢弃,读返回 0 并预期 SLVERR。
 - Scoreboard:每笔读的 rdata/rresp、每笔写的 bresp 与参考模型比对;测试结束时用 reg_q_o 与参考数组全量比对。
-- 监测点:AXI 全部端口、reg_q_o;断言通过 bind 自动挂接。
+- 监测点:AXI 全部端口、reg_q_o;断言通过 bind 挂接(checker 端口按 N-5 统一以 _i 结尾,bind 处逐一命名连接 DUT 信号)。
 - 随机测试:读写地址(含越界,约 10% 概率)、wdata、wstrb 随机,延迟 0~7 拍随机;种子由命令行传入,回归至少 20 个种子,失败时打印种子。
 
 ## 4. 用例清单
@@ -54,7 +54,7 @@
 | t_r_backpressure | C03 C04 | rready 延迟多拍 | rvalid/rdata/rresp 保持 |
 | t_rw_same_reg | C13 | 同拍对同一寄存器读写 | 读到写入前旧值 |
 | t_back2back | C04 | 连续背靠背写、读、读写混合 | 无丢失,顺序正确 |
-| t_reset_mid_txn | C16 | 事务中途拉低 rst_n | 握手输出清零,寄存器复位,恢复后事务正常 |
+| t_reset_mid_txn | C16 | 事务中途拉低 rst_n_i | 握手输出清零,寄存器复位,恢复后事务正常 |
 | t_param_corner | C15 | NUM_REGS=1;NUM_REGS=2**(ADDR_WIDTH-2) | 无越界误判,译码正确 |
 | t_random | C08 C10 C12 C14 | 第 3 章随机约束,多种子 | scoreboard 0 error,断言 0 fail |
 

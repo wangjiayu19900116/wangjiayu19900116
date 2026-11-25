@@ -21,32 +21,34 @@
 
 | 信号名 | 方向 | 位宽 | 含义 |
 |---|---|---|---|
-| clk | in | 1 | 时钟,上升沿有效 |
-| rst_n | in | 1 | 同步低有效复位 |
-| s_axi_awaddr | in | ADDR_WIDTH | 写地址 |
-| s_axi_awprot | in | 3 | 忽略 |
-| s_axi_awvalid | in | 1 | 写地址有效 |
-| s_axi_awready | out | 1 | 写地址就绪 |
-| s_axi_wdata | in | DATA_WIDTH | 写数据 |
-| s_axi_wstrb | in | DATA_WIDTH/8 | 字节使能 |
-| s_axi_wvalid | in | 1 | 写数据有效 |
-| s_axi_wready | out | 1 | 写数据就绪 |
-| s_axi_bresp | out | 2 | 写响应:OKAY(2'b00) / SLVERR(2'b10) |
-| s_axi_bvalid | out | 1 | 写响应有效 |
-| s_axi_bready | in | 1 | 写响应就绪 |
-| s_axi_araddr | in | ADDR_WIDTH | 读地址 |
-| s_axi_arprot | in | 3 | 忽略 |
-| s_axi_arvalid | in | 1 | 读地址有效 |
-| s_axi_arready | out | 1 | 读地址就绪 |
-| s_axi_rdata | out | DATA_WIDTH | 读数据 |
-| s_axi_rresp | out | 2 | 读响应:OKAY / SLVERR |
-| s_axi_rvalid | out | 1 | 读数据有效 |
-| s_axi_rready | in | 1 | 读数据就绪 |
+| clk_i | in | 1 | 时钟,上升沿有效 |
+| rst_n_i | in | 1 | 异步低有效复位,同步释放由外部保证 |
+| s_axi_awaddr_i | in | ADDR_WIDTH | 写地址 |
+| s_axi_awprot_i | in | 3 | 忽略 |
+| s_axi_awvalid_i | in | 1 | 写地址有效 |
+| s_axi_awready_o | out | 1 | 写地址就绪 |
+| s_axi_wdata_i | in | DATA_WIDTH | 写数据 |
+| s_axi_wstrb_i | in | DATA_WIDTH/8 | 字节使能 |
+| s_axi_wvalid_i | in | 1 | 写数据有效 |
+| s_axi_wready_o | out | 1 | 写数据就绪 |
+| s_axi_bready_i | in | 1 | 写响应就绪 |
+| s_axi_bresp_o | out | 2 | 写响应:OKAY(2'b00) / SLVERR(2'b10) |
+| s_axi_bvalid_o | out | 1 | 写响应有效 |
+| s_axi_araddr_i | in | ADDR_WIDTH | 读地址 |
+| s_axi_arprot_i | in | 3 | 忽略 |
+| s_axi_arvalid_i | in | 1 | 读地址有效 |
+| s_axi_arready_o | out | 1 | 读地址就绪 |
+| s_axi_rready_i | in | 1 | 读数据就绪 |
+| s_axi_rdata_o | out | DATA_WIDTH | 读数据 |
+| s_axi_rresp_o | out | 2 | 读响应:OKAY / SLVERR |
+| s_axi_rvalid_o | out | 1 | 读数据有效 |
 | reg_q_o | out | NUM_REGS*DATA_WIDTH | 全部寄存器当前值(第 i 个寄存器位于 [i*DATA_WIDTH +: DATA_WIDTH]) |
+
+端口命名遵循 rtl-style N-5:输入以 `_i`、输出以 `_o` 结尾;每个通道内先输入后输出(F-3)。正文中 awvalid、bready 等小写简称指对应 AXI 通道信号,不带方向后缀。
 
 ### 2.3 端口时序约定
 
-- 所有输入在 clk 上升沿采样,所有输出由寄存器直接驱动(无组合输出路径,reg_q_o 为寄存器直出)。
+- 所有输入在 clk_i 上升沿采样,所有输出由寄存器直接驱动(无组合输出路径,reg_q_o 为寄存器直出)。
 - VALID 一旦拉高,在对应 READY 握手完成前不得撤销,且负载保持稳定(AXI 协议要求,由主机保证)。
 - 本模块的 READY 不依赖同一通道的 VALID 之外的任何组合路径,BVALID/RVALID 不依赖 BREADY/RREADY。
 
@@ -67,7 +69,7 @@
 3. 字节使能:问题——部分字节写;解决——按 wstrb 逐字节更新寄存器对应字节;wstrb 全 0 时不改写寄存器,仍返回 OKAY。
 4. 地址译码与越界:问题——地址超出寄存器范围或未按字对齐;解决——取 addr[ADDR_WIDTH-1:2] 作为寄存器索引,索引 >= NUM_REGS 则写被丢弃、读返回 0,并返回 SLVERR;低 2 位地址忽略(按字对齐访问)。
 5. 读数据:问题——读与写同拍访问同一寄存器的先后关系;解决——读数据在 arready 握手拍锁存(取写入前的旧值),该情形下行为明确且无亚稳态,验证时以此为参考。
-6. 复位:异步低有效复位、同步释放(rst_n 由外部同步释放,依据 rtl-style S-2),所有 valid/ready 清零,寄存器恢复 RESET_VAL。
+6. 复位:异步低有效复位、同步释放(rst_n_i 由外部同步释放,依据 rtl-style S-2),所有 valid/ready 清零,寄存器恢复 RESET_VAL。
 
 ### 3.3 寄存输出握手实现(修订 3.2 第 1、5 点及 2.1 复位描述)
 
@@ -133,7 +135,7 @@ stateDiagram-v2
 
 ## 7. 复位与初始化
 
-- rst_n 低:wr_ready_q、bvalid_q、arready_q、rvalid_q 清 0;reg_q 全部恢复 RESET_VAL;rdata_q 清 0,bresp_q/rresp_q 为 OKAY。
+- rst_n_i 低:wr_ready_q、bvalid_q、arready_q、rvalid_q 清 0;reg_q 全部恢复 RESET_VAL;rdata_q 清 0,bresp_q/rresp_q 为 OKAY。
 - 释放后首拍:所有 ready/valid 为 0,首个有效请求按第 6 章时序处理。
 
 ## 8. 假设与限制
